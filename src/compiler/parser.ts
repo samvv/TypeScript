@@ -1003,6 +1003,7 @@ namespace ts {
             sourceFile.languageVariant = getLanguageVariant(scriptKind);
             sourceFile.isDeclarationFile = isDeclarationFile;
             sourceFile.scriptKind = scriptKind;
+            sourceFile.definedMacros = createMap();
 
             return sourceFile;
         }
@@ -5673,6 +5674,8 @@ namespace ts {
                     break;
                 case SyntaxKind.FunctionKeyword:
                     return parseFunctionDeclaration(<FunctionDeclaration>createNodeWithJSDoc(SyntaxKind.FunctionDeclaration));
+                case SyntaxKind.MacroKeyword:
+                    return parseMacroDeclaration(<MacroDeclaration>createNodeWithJSDoc(SyntaxKind.MacroDeclaration));
                 case SyntaxKind.ClassKeyword:
                     return parseClassDeclaration(<ClassDeclaration>createNodeWithJSDoc(SyntaxKind.ClassDeclaration));
                 case SyntaxKind.IfKeyword:
@@ -5727,7 +5730,17 @@ namespace ts {
                     }
                     break;
             }
+            if (isMacroInvocation()) {
+                return parseMacroInvocation(<MacroInvocation>createNode(SyntaxKind.MacroInvocation));
+            }
             return parseExpressionOrLabeledStatement();
+        }
+
+        function isMacroInvocation() {
+            if (!isIdentifier()) {
+              return false;
+            }
+            return sourceFile.definedMacros.has(scanner.getTokenValue())
         }
 
         function isDeclareModifier(modifier: Modifier) {
@@ -5976,6 +5989,17 @@ namespace ts {
             fillSignature(SyntaxKind.ColonToken, isGenerator | isAsync, node);
             node.body = parseFunctionBlockOrSemicolon(isGenerator | isAsync, Diagnostics.or_expected);
             return finishNode(node);
+        }
+
+        function parseMacroDeclaration(node: MacroDeclaration): MacroDeclaration {
+            node.kind = SyntaxKind.MacroDeclaration;
+            parseExpected(SyntaxKind.MacroKeyword);
+            node.name = parseIdentifier();
+            fillSignature(SyntaxKind.ColonToken, SignatureFlags.None, node)
+            node.body = parseFunctionBlock(SignatureFlags.None, Diagnostics.or_expected);
+            const finished = finishNode(node)
+            sourceFile.definedMacros.set(node.name.escapedText as string, finished);
+            return finished
         }
 
         function parseConstructorName() {
@@ -6674,6 +6698,87 @@ namespace ts {
             node.expression = parseAssignmentExpressionOrHigher();
             parseSemicolon();
             return finishNode(node);
+        }
+
+        function parseMacroInvocation(node: MacroInvocation): MacroInvocation {
+            node.kind = SyntaxKind.MacroInvocation;
+            node.name = parseIdentifier();
+            const args: MacroArgument[] = [];
+            const argsPos = getNodePos();
+            let bracketStack: BracketLikeSyntaxKind[] = [];
+            while (true) {
+                if (token() === SyntaxKind.EndOfFileToken) {
+                    if (bracketStack.length > 0) {
+                      const expected = invertBracketLikeSyntaxKind(bracketStack[bracketStack.length-1])
+                      parseErrorAtCurrentToken(Diagnostics._0_expected, expected)
+                    }
+                    break;
+                } else if (token() === SyntaxKind.SemicolonToken && bracketStack.length === 0) {
+                    nextToken();
+                    break;
+                } else if (isCloseBracketLike()) {
+                    const expected = bracketStack[bracketStack.length-1];
+                    const actual = token();
+                    if (invertBracketLikeSyntaxKind(expected) !== actual) {
+                        parseErrorAtCurrentToken(Diagnostics._0_expected, tokenToString(expected))
+                    }
+                    bracketStack.pop();
+                    if (bracketStack.length === 0) {
+                        break;
+                    }
+                } else if (isOpenBracketLike()) {
+                    bracketStack.push(<OpenBracketLikeSyntaxKind>token());
+                }
+                args.push(token() === SyntaxKind.Identifier ? parseIdentifier() : <MacroArgument>createNode(token()));
+                nextToken();
+                if (bracketStack.length === 0) {
+                  if (token() === SyntaxKind.SemicolonToken) {
+                    nextToken();
+                  }
+                  break;
+                }
+            }
+            node.args = createNodeArray(args, argsPos);
+            return finishNode(node);
+        }
+
+        function isOpenBracketLike() {
+          switch (token()) {
+            case SyntaxKind.OpenBraceToken:
+            case SyntaxKind.OpenBracketToken:
+            case SyntaxKind.OpenParenToken:
+              return true;
+            default:
+              return false;
+          }
+        }
+
+        function isCloseBracketLike() {
+          switch (token()) {
+            case SyntaxKind.CloseBraceToken:
+            case SyntaxKind.CloseBracketToken:
+            case SyntaxKind.CloseParenToken:
+              return true;
+            default:
+              return false;
+          }
+        }
+
+        function invertBracketLikeSyntaxKind(kind: BracketLikeSyntaxKind) {
+          switch (kind) {
+            case SyntaxKind.OpenBraceToken:
+              return SyntaxKind.CloseBraceToken;
+            case SyntaxKind.CloseBraceToken:
+              return SyntaxKind.OpenBraceToken;
+            case SyntaxKind.OpenBracketToken:
+              return SyntaxKind.CloseBracketToken;
+            case SyntaxKind.CloseBracketToken:
+              return SyntaxKind.OpenBracketToken;
+            case SyntaxKind.OpenParenToken:
+              return SyntaxKind.CloseParenToken;
+            case SyntaxKind.CloseParenToken:
+              return SyntaxKind.OpenParenToken;
+          }
         }
 
         function setExternalModuleIndicator(sourceFile: SourceFile) {

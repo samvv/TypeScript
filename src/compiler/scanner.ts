@@ -142,6 +142,7 @@ namespace ts {
         async: SyntaxKind.AsyncKeyword,
         await: SyntaxKind.AwaitKeyword,
         of: SyntaxKind.OfKeyword,
+        macro: SyntaxKind.MacroKeyword,
     };
 
     const textToKeyword = createMapFromTemplate(textToKeywordObj);

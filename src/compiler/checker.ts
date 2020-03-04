@@ -30639,6 +30639,7 @@ namespace ts {
                     case SyntaxKind.Constructor:
                     case SyntaxKind.FunctionExpression:
                     case SyntaxKind.FunctionDeclaration:
+                    case SyntaxKind.MacroDeclaration:
                     case SyntaxKind.ArrowFunction:
                     case SyntaxKind.MethodDeclaration:
                     case SyntaxKind.GetAccessor:

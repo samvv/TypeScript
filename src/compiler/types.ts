@@ -107,7 +107,68 @@ namespace ts {
         | SyntaxKind.YieldKeyword
         | SyntaxKind.AsyncKeyword
         | SyntaxKind.AwaitKeyword
-        | SyntaxKind.OfKeyword;
+        | SyntaxKind.OfKeyword
+        | SyntaxKind.MacroKeyword;
+
+    export type AssignmentSyntaxKind
+        = SyntaxKind.EqualsToken
+        | SyntaxKind.PlusEqualsToken
+        | SyntaxKind.MinusEqualsToken
+        | SyntaxKind.AsteriskEqualsToken
+        | SyntaxKind.AsteriskAsteriskEqualsToken
+        | SyntaxKind.SlashEqualsToken
+        | SyntaxKind.PercentEqualsToken
+        | SyntaxKind.LessThanLessThanEqualsToken
+        | SyntaxKind.GreaterThanGreaterThanEqualsToken
+        | SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken
+        | SyntaxKind.AmpersandEqualsToken
+        | SyntaxKind.BarEqualsToken
+        | SyntaxKind.CaretEqualsToken;
+
+    export type PunctuationSyntaxKind
+        = SyntaxKind.OpenBraceToken
+        | SyntaxKind.CloseBraceToken
+        | SyntaxKind.OpenParenToken
+        | SyntaxKind.CloseParenToken
+        | SyntaxKind.OpenBracketToken
+        | SyntaxKind.CloseBracketToken
+        | SyntaxKind.DotToken
+        | SyntaxKind.DotDotDotToken
+        | SyntaxKind.SemicolonToken
+        | SyntaxKind.CommaToken
+        | SyntaxKind.QuestionDotToken
+        | SyntaxKind.LessThanToken
+        | SyntaxKind.LessThanSlashToken
+        | SyntaxKind.GreaterThanToken
+        | SyntaxKind.LessThanEqualsToken
+        | SyntaxKind.GreaterThanEqualsToken
+        | SyntaxKind.EqualsEqualsToken
+        | SyntaxKind.ExclamationEqualsToken
+        | SyntaxKind.EqualsEqualsEqualsToken
+        | SyntaxKind.ExclamationEqualsEqualsToken
+        | SyntaxKind.EqualsGreaterThanToken
+        | SyntaxKind.PlusToken
+        | SyntaxKind.MinusToken
+        | SyntaxKind.AsteriskToken
+        | SyntaxKind.AsteriskAsteriskToken
+        | SyntaxKind.SlashToken
+        | SyntaxKind.PercentToken
+        | SyntaxKind.PlusPlusToken
+        | SyntaxKind.MinusMinusToken
+        | SyntaxKind.LessThanLessThanToken
+        | SyntaxKind.GreaterThanGreaterThanToken
+        | SyntaxKind.GreaterThanGreaterThanGreaterThanToken
+        | SyntaxKind.AmpersandToken
+        | SyntaxKind.BarToken
+        | SyntaxKind.CaretToken
+        | SyntaxKind.ExclamationToken
+        | SyntaxKind.TildeToken
+        | SyntaxKind.AmpersandAmpersandToken
+        | SyntaxKind.BarBarToken
+        | SyntaxKind.QuestionToken
+        | SyntaxKind.ColonToken
+        | SyntaxKind.AtToken
+        | SyntaxKind.QuestionQuestionToken;
 
     export type JsxTokenSyntaxKind =
         | SyntaxKind.LessThanSlashToken
@@ -253,6 +314,7 @@ namespace ts {
         ProtectedKeyword,
         PublicKeyword,
         StaticKeyword,
+        MacroKeyword,
         YieldKeyword,
         // Contextual keywords
         AbstractKeyword,
@@ -390,6 +452,8 @@ namespace ts {
         VariableDeclaration,
         VariableDeclarationList,
         FunctionDeclaration,
+        MacroInvocation,
+        MacroDeclaration,
         ClassDeclaration,
         InterfaceDeclaration,
         TypeAliasDeclaration,
@@ -683,6 +747,7 @@ namespace ts {
         | ExpressionStatement
         | VariableStatement
         | FunctionDeclaration
+        | MacroDeclaration
         | ConstructorDeclaration
         | MethodDeclaration
         | PropertyDeclaration
@@ -700,6 +765,20 @@ namespace ts {
         | JSDocFunctionType
         | ExportDeclaration
         | EndOfFileToken;
+
+    export type OpenBracketLikeSyntaxKind
+        = SyntaxKind.OpenBraceToken
+        | SyntaxKind.OpenBracketToken
+        | SyntaxKind.OpenParenToken
+
+    export type CloseBracketLikeSyntaxKind
+        = SyntaxKind.CloseBraceToken
+        | SyntaxKind.CloseBracketToken
+        | SyntaxKind.CloseParenToken;
+
+    export type BracketLikeSyntaxKind
+        = OpenBracketLikeSyntaxKind
+        | CloseBracketLikeSyntaxKind;
 
     export type HasType =
         | SignatureDeclaration
@@ -946,7 +1025,8 @@ namespace ts {
         | ConstructorDeclaration
         | AccessorDeclaration
         | FunctionExpression
-        | ArrowFunction;
+        | ArrowFunction
+        | MacroDeclaration;
 
     export interface CallSignatureDeclaration extends SignatureDeclarationBase, TypeElement {
         kind: SyntaxKind.CallSignature;
@@ -1124,6 +1204,25 @@ namespace ts {
         kind: SyntaxKind.FunctionDeclaration;
         name?: Identifier;
         body?: FunctionBody;
+    }
+
+    export interface MacroDeclaration extends FunctionLikeDeclarationBase, DeclarationStatement {
+        kind: SyntaxKind.MacroDeclaration;
+        name: Identifier;
+        body: FunctionBody;
+    }
+
+    export type MacroArgument
+        = Token<KeywordSyntaxKind>
+        | Token<PunctuationSyntaxKind>
+        | Token<AssignmentSyntaxKind>
+        | Identifier
+        ;
+
+    export interface MacroInvocation extends Expression, Statement, Declaration {
+        kind: SyntaxKind.MacroInvocation;
+        name: Identifier;
+        args: NodeArray<MacroArgument>;
     }
 
     export interface MethodSignature extends SignatureDeclarationBase, TypeElement {
@@ -2930,6 +3029,12 @@ namespace ts {
          * The redirect will have this set. The redirected-to source file will be in `redirectTargetsMap`.
          */
         /* @internal */ redirectInfo?: RedirectInfo;
+
+        /**
+         * Populated by the parser whenever a MacroDeclaration is encountered.  The parser needs to know 
+         * about these declarations so that a potential macro invcation is correctly parsed.
+         */
+        /* @internal */ definedMacros: Map<MacroDeclaration>;
 
         amdDependencies: readonly AmdDependency[];
         moduleName?: string;

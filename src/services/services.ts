@@ -618,6 +618,7 @@ namespace ts {
         public pragmas!: PragmaMap;
         public localJsxFactory: EntityName | undefined;
         public localJsxNamespace: __String | undefined;
+        public definedMacros!: Map<MacroDeclaration>;
 
         constructor(kind: SyntaxKind, pos: number, end: number) {
             super(kind, pos, end);
